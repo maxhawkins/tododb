@@ -16,7 +16,7 @@ import (
 
 func main() {
 	var (
-		dbPath = flag.String("db", "postgres://localhost/tododb?sslmode=disable", "db location")
+		dbPath = flag.String("db", "postgres://postgres/tododb?sslmode=disable", "postgres db url")
 		port   = flag.Int("port", 7766, "http port")
 	)
 	flag.Parse()
