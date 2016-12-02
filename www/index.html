@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>TODO</title>
+	<meta charset="utf-8">
+	<style>
+		body {
+			margin: 2em 30px;
+			margin-bottom: 8em;
+			max-width: 700px;
+		}
+		body, .todo input {
+			font-size: 18px;
+			font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+		}
+		.todo {
+			display: flex;
+		}
+		.todo input {
+			border: 0;
+			outline: 0;
+			margin: 0;
+			padding: 0 10px;
+			display: block;
+			line-height: 2em;
+			background: transparent;
+			float: left;
+		}
+		.todo-input {
+			flex: 1;
+		}
+		.date-input {
+			width: 70px;
+		}
+		.overdue .date-input {
+			color: rgba(255, 0, 0, 0.5);
+		}
+		.future .date-input,
+		.future .todo-input {
+			color: rgba(0, 0, 0, 0.3);
+		}
+		.todo.focused {
+			background: #F0F0F0;
+		}
+		.level-0 input {
+			font-weight: bold;
+		}
+		.level-1 .todo-input {
+			padding-left: 2em;
+		}
+
+		.todos {
+			background: white;
+			padding-top: 3em;
+			clear: both;
+		}
+		.button {
+			padding: 8px 20px;
+			background: #546E7A;
+			border: 0;
+			color: rgba(255, 255, 255, 0.9);
+			float: right;
+		}
+		header {
+			overflow: auto;
+			margin-bottom: 1em;
+		}
+
+		::-webkit-input-placeholder {
+			color: transparent;
+		}
+		.focused ::-webkit-input-placeholder {
+			text-align: center;
+			font-weight: normal;
+			font-size: 0.7em;
+			padding: 8px;
+			color: rgba(0, 0, 0, 0.2);
+			border: dashed rgba(0, 0, 0, 0.1) 1px;
+			border-radius: 10px;
+		}
+		.level-0.focused ::-webkit-input-placeholder {
+			opacity: 0;
+		}
+	</style>
+</head>
+<body>
+
+<div id="main">
+	<header>
+		<button v-on:click="random" class="button">Random</button>
+	</header>
+
+	<div class="todos">
+		<todo-row
+			v-bind:focused="i == focused"
+			v-bind:todo="todo"
+			v-on:focus="onfocus(i)"
+			v-on:up="onup(i)"
+			v-on:down="ondown(i)"
+			v-on:addabove="onadd(i)"
+			v-on:addbelow="onadd(i + 1)"
+			v-on:delete="ondelete(i)"
+			v-on:indent="onindent(i, 1)"
+			v-on:outdent="onindent(i, -1)"
+			v-for="todo, i in todos">
+		</todo-row>
+	</div>
+
+</div>
+
+<script type="text/x-template" id="todo-row-tmpl">
+	<div v-bind:class="[
+			'todo',
+			'level-' + todo.indent,
+			(this.focused ? 'focused' : ''),
+			(isOverdue(todo.date) ? 'overdue' : ''),
+			(isFuture(todo.date) ? 'future' : ''),
+		].join(' ')">
+		<input
+			ref="input"
+			type="text"
+			class="todo-input"
+			tabindex="-1"
+			v-on:mousedown="mousedown"
+			v-on:keydown="keydown"
+			v-model="todo.title">
+		<input
+			type="text"
+			class="date-input"
+			v-on:mousedown="mousedown"
+			v-on:keydown="keydown"
+			tabindex="-1"
+			placeholder="duration"
+			v-model="todo.duration">
+		<input
+			type="text"
+			class="date-input"
+			v-on:mousedown="mousedown"
+			v-on:keydown="keydown"
+			placeholder="due date"
+			tabindex="-1"
+			v-model="todo.date">
+	</div>
+</script>
+
+<script src="vue.js"></script>
+<script src="chrono.js"></script>
+
+<script>
+
+var KEYS = {
+	Up: 38,
+	Down: 40,
+	Return: 13,
+	Delete: 8,
+	Tab: 9,
+};
+
+var MONTHS = [
+	'Jan',
+	'Feb',
+	'Mar',
+	'Apr',
+	'May',
+	'Jun',
+	'Jul',
+	'Aug',
+	'Sep',
+	'Oct',
+	'Nov',
+	'Dec'
+];
+
+function debounce(func, wait, immediate) {
+	var timeout;
+	return function() {
+		var context = this, args = arguments;
+		var later = function() {
+			timeout = null;
+			if (!immediate) func.apply(context, args);
+		};
+		var callNow = immediate && !timeout;
+		clearTimeout(timeout);
+		timeout = setTimeout(later, wait);
+		if (callNow) func.apply(context, args);
+	};
+};
+
+function GetTodoList() {
+	return fetch('/lists/1')
+		.then(function(resp) {
+			if (resp.status < 200 || resp.status >= 300) {
+				var err = Error('bad response ' + resp.status);
+				return Promise.reject(err);
+			}
+
+			return resp.json();		
+		});
+}
+
+function SaveTodoList(todos) {
+	return fetch('/lists/1', {
+		method: 'PUT',
+		body: JSON.stringify(todos),
+	})
+		.then(function(resp) {
+			if (resp.status < 200 || resp.status >= 300) {
+				var err = Error('bad response ' + resp.status);
+				return Promise.reject(err);
+			}
+
+			return resp.json();
+		});
+}
+
+SaveTodoList = debounce(SaveTodoList, 1000);
+
+GetTodoList()
+	.then(function(todos) {
+		app.todos = todos;
+	});
+
+Vue.component('todo-row', {
+	template: '#todo-row-tmpl',
+	props: [
+		'todo',
+		'focused',
+	],
+	watch: {
+		focused: function(val) {
+			var input = this.$refs.input;
+			if (val) {
+				this.scrollto();
+				input.select();
+			} else {
+				this.dateBlur();
+				input.blur();
+			}
+		}
+	},
+	mounted: function() {
+		var input = this.$refs.input;
+		if (this.focused) {
+			this.scrollto();
+			input.select();
+		} else {
+			input.blur();
+		}
+	},
+	methods: {
+		scrollto: function() {
+			var input = this.$refs.input;
+
+			var inputTop = input.offsetTop;
+			var inputBottom = inputTop + input.offsetHeight;
+
+			var winTop = window.scrollY;
+			var winBottom = winTop + window.innerHeight;
+
+			var padding = 30;
+
+			if (inputTop < winTop) {
+				window.scrollTo(0, inputTop - padding);
+			}
+			if (inputBottom > winBottom) {
+				window.scrollTo(0, inputBottom - window.innerHeight + padding);
+			}
+		},
+		isOverdue: function(dateStr) {
+			var date = chrono.parseDate(this.todo.date);
+			if (!date) {
+				return false;
+			}
+
+			if (Date.now() > date.getTime()) {
+				return true;
+			}
+
+			return false;
+		},
+		isFuture: function(dateStr) {
+			var date = chrono.parseDate(this.todo.date);
+			if (!date) {
+				return false;
+			}
+
+			var longtime = 1000 * 60 * 60 * 24 * 5;
+			if ((date.getTime() - Date.now()) > longtime) {
+				return true;
+			}
+
+			return false;
+		},
+		dateBlur: function(e) {
+			var date = chrono.parseDate(this.todo.date);
+
+			var dateStr;
+			if (date) {
+				var month = MONTHS[date.getMonth()];
+				var day = date.getDate();
+				dateStr = '' + month + ' ' + day;
+			}
+
+			this.todo.date = dateStr;
+		},
+		mousedown: function(e) {
+			if (this.focused) {
+				return;
+			}
+
+			e.preventDefault();
+			
+			this.$emit('focus');
+		},
+		keydown: function(e) {
+			switch (e.keyCode) {
+			case KEYS.Up:
+				this.$emit('up');
+				e.preventDefault();
+				break;
+
+			case KEYS.Down:
+				this.$emit('down');
+				e.preventDefault();
+				break;
+
+			case KEYS.Delete:
+				if (this.todo.title.length != 0) {
+					break;
+				}
+				e.preventDefault();
+				this.$emit('delete');
+				break;
+
+			case KEYS.Tab:
+				e.preventDefault();
+				if (e.shiftKey) {
+					this.$emit('outdent');
+				} else {
+					this.$emit('indent');
+				}
+				break;
+
+			case KEYS.Return:
+				if (e.shiftKey) {
+					this.$emit('addabove');
+				} else {
+					this.$emit('addbelow');
+				}
+				break;
+
+			}
+		},
+	},
+})
+
+var app = new Vue({
+  el: '#main',
+  data: {
+    todos: {},
+    focused: 0,
+  },
+  watch: {
+  	todos: {
+  		deep: true,
+  		handler: function(value) {
+  			SaveTodoList(app.todos);
+  		},
+  	}
+  },
+  methods: {
+  	onfocus: function(i) {
+  		var prev = this.todos[i - 1];
+  		if (i === this.todos.length &&
+  			prev &&
+  			prev.title !== '') {
+  			this.onadd(i);
+  			return;
+  		}
+
+  		i = Math.min(this.todos.length - 1, i);
+  		i = Math.max(0, i);
+  		this.focused = i;
+  	},
+  	onup: function(i) {
+		this.onfocus(i - 1);
+  	},
+  	ondown: function(i) {
+  		this.onfocus(i + 1);
+  	},
+  	onadd: function(i) {
+  		var prev = this.todos[i - 1];
+  		var indent = 0;
+  		if (prev) {
+  			indent = prev.indent;
+  		}
+
+  		var todos = this.todos.slice(0, i);
+  		todos.push({title: "", indent: indent});
+  		todos = todos.concat(this.todos.slice(i));
+
+  		this.todos = todos;
+
+  		this.onfocus(i);
+  	},
+  	ondelete: function(i) {
+  		if (this.todos.length <= 1) {
+  			return;
+  		}
+
+  		this.todos.splice(i, 1);
+  		this.onfocus(i - 1);
+  	},
+  	onindent: function(i, n) {
+  		var todo = this.todos[i];
+  		todo.indent += n;
+  		todo.indent = Math.min(todo.indent, 1);
+  		todo.indent = Math.max(todo.indent, 0);
+  	},
+  	random: function() {
+  		var actions = this.todos.map(function(todo, i) {
+  			if (todo.indent == 0) {
+  				return null;
+  			}
+  			return i;
+  		}).filter(function(i) {
+  			return i !== null;
+  		});
+
+  		var i = Math.floor(Math.random() * actions.length);
+  		this.onfocus(actions[i]);
+  	}
+  }
+});
+
+</script>
+
+</body>
+</html>

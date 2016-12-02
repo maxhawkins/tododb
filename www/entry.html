@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Inbox</title>
+	<meta charset="utf-8">
+	<style>
+		body, html {
+			padding: 0;
+			margin: 0;
+			width: 100%;
+			height: 100%;
+			display: flex;
+		}
+		body, input {
+			font-size: 18px;
+			font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+		}
+		#main {
+			flex: 1;
+			position: relative;
+			justify-content: flex-end;
+			align-items: flex-end;
+		}
+		.input {
+			position: absolute;
+			bottom: 0;
+			width: calc(100% - 60px);
+
+			padding: 0 30px;
+			margin-bottom: 100px;
+
+			border: 0;
+			outline: 0;
+			resize: none;
+
+			font-size: 48px;
+			overflow: hidden;
+			background: transparent;
+			
+			display: block;
+			text-align: center;
+
+			transition: bottom 0.8s ease-out,
+						opacity 0.5s linear;
+		}
+		.done {
+			bottom: 300px;
+			opacity: 0;
+		}
+		.prompt {
+			text-align: center;
+			margin-top: 2em;
+		}
+		.prompt .subtitle {
+			font-size: 12px;
+			max-width: 400px;
+			margin: 1em auto;
+			color: rgba(0, 0, 0, 0.53);
+		}
+	</style>
+</head>
+<body>
+
+<div id="main">
+	<div class="prompt">
+		<div class="title">{{prompt().text}}</div>
+		<div class="subtitle">{{prompt().sub}}</div>
+	</div>
+	<todo-row 
+		v-bind:done="i !== (todos.length - 1)"
+		v-bind:todo="todo"
+		v-for="todo, i in todos"
+		v-on:complete="complete"></textarea>
+</div>
+
+<script type="text/x-template" id="todo-row-tmpl">
+	<textarea 
+		rows="1"
+		v-bind:class="{done: done}"
+		ref="input"
+		v-model="todo.text"
+		v-on:keydown="onkeydown"
+		class="input"></textarea>
+</script>
+
+<script src="vue.js"></script>
+
+<script>
+
+var KEYS = {
+	Up: 38,
+	Down: 40,
+	Return: 13,
+	Delete: 8,
+	Tab: 9,
+};
+
+function shuffleArray(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+    return array;
+}
+
+var PROMPTS = [
+  {
+  	"text": "Writing",
+  	"sub": "reviews, proposals, articles, instructions, status reporting",
+  },
+  {
+  	"text": "Projects started, not completed",
+  },
+  {
+  	"text": "Projects that need to be started",
+  },
+  {
+  	"text": "'look into' projects",
+  },
+  {
+    "text": "Meetings",
+    "sub": "upcoming, need to be set or requested, need to be de-briefed"
+  },
+  {
+    "text": "Read/review",
+    "sub": "books, articles, websites, podcasts"
+  },
+  {
+    "text": "Financial",
+    "sub": "bills, banks, investments, taxes, budget, insurance"
+  },
+  {
+    "text": "Planning/organizing",
+    "sub": "goals, financial plans, upcoming events, presentations, meetings, conferences, travel, vacation"
+  },
+  {
+    "text": "Systems",
+    "sub": "computers, software, supplies, business cards, stationery, voice recorder"
+  },
+  {
+    "text": "Sales",
+    "sub": "customers, prospects, relationship building, customer service"
+  },
+  {
+    "text": "Marketing/promotion",
+    "sub": "website, interviews, blog articles"
+  },
+  {
+    "text": "Waiting for",
+    "sub": "repairs, reimbursements, loaned items, rsvp’s, delegated projects/tasks, replies to communications, answers to questions, things ordered, invoices"
+  },
+  {
+    "text": "Professional development",
+    "sub": "conferences, books to read, resume"
+  },
+  {
+    "text": "Clothing",
+    "sub": "missing items, luggage, repairs, tailoring",
+  },
+  {
+  	"text": "Transportation",
+  	"sub": "commuting, tickets, reservations",
+  },
+  {
+  	"text": "Personal Development",
+  	"sub": "meditation, coaching, career",
+  },
+  {
+  	"text": "Health",
+  	"sub": "doctors, therapist, dentist, optometrist, specialists, checkups, diet, food, exercise",
+  },
+  {
+  	"text": "Leisure",
+  	"sub": "movies, facebook events, concerts, art shows, travel, people to visit, web browsing",
+  },
+  {
+  	"text": "Upcoming Events",
+  	"sub": "birthdays, weddings, graduations, parties, holidays, travel",
+  },
+  {
+  	"text": "Communications",
+  	"sub": "inbox, sms, facebook chat, letters, thank-you’s",
+  },
+  {
+  	"text": "Keep Up With People",
+  	"sub": "partner, friends, family, professionals",
+  },
+  {
+  	"text": "Preparation",
+  	"sub": "tomorrow, this week, weekend",
+  },
+];
+PROMPTS = shuffleArray(PROMPTS);
+
+Vue.component('todo-row', {
+	template: '#todo-row-tmpl',
+	props: [
+		'todo',
+		'done',
+	],
+	mounted: function() {
+		this.$refs.input.focus();
+	},
+	methods: {
+		onkeydown: function(e) {
+			var input = this.$refs.input;
+			if (input.clientHeight !== input.scrollHeight) {
+				input.style.height = input.scrollHeight + 'px';
+			}
+
+			if (e.keyCode == KEYS.Return && !e.shiftKey) {
+				e.preventDefault();
+				this.$emit('complete');	
+			}
+		},
+	},
+});
+
+var app = new Vue({
+  el: '#main',
+  data: {
+    todos: [{text: ''}],
+    promptIdx: 0,
+    PROMPTS: PROMPTS,
+  },
+  methods: {
+  	prompt: function() {
+  		return PROMPTS[this.promptIdx % PROMPTS.length];
+  	},
+    send: function(text) {
+      var todos = [];
+      var todosJS = localStorage.getItem('todos');
+      if (todosJS) {
+        todos = JSON.parse(todosJS);
+      }
+
+      todos.splice(0, 0, {text: text, indent: 0});
+
+      localStorage.setItem('todos', JSON.stringify(todos));
+    },
+  	complete: function() {
+      var lastTodo = this.todos[this.todos.length - 1];
+
+  		if (lastTodo.text === '') {
+  			this.promptIdx += 1;
+        return;
+  		}
+  		
+      this.send(lastTodo.text);
+      this.todos.push({text: ''});
+  	},
+  },
+});
+
+</script>
+
+</body>
+</html>
