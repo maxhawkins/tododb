@@ -171,6 +171,8 @@ var MONTHS = [
 	'Dec'
 ];
 
+var API_URL = "{{API_URL}}";
+
 function debounce(func, wait, immediate) {
 	var timeout;
 	return function() {
@@ -187,7 +189,7 @@ function debounce(func, wait, immediate) {
 };
 
 function GetTodoList() {
-	return fetch('/lists/1')
+	return fetch(API_URL + '/lists/1')
 		.then(function(resp) {
 			if (resp.status < 200 || resp.status >= 300) {
 				var err = Error('bad response ' + resp.status);
@@ -199,7 +201,7 @@ function GetTodoList() {
 }
 
 function SaveTodoList(todos) {
-	return fetch('/lists/1', {
+	return fetch(API_URL + '/lists/1', {
 		method: 'PUT',
 		body: JSON.stringify(todos),
 	})
